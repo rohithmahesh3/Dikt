@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💡 Feature Request or Idea
+    url: https://github.com/rohithmahesh3/Dikt/discussions
+    about: Please post feature requests and ideas in our Discussions tab
+  - name: 💬 General Discussion
+    url: https://github.com/rohithmahesh3/Dikt/discussions
+    about: Ask questions and discuss Dikt with the community

@@ -1,0 +1,15 @@
+[Unit]
+Description=Dikt Speech-to-Text Service
+After=graphical-session.target
+Requires=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=io.dikt.Transcription
+ExecStart=/usr/bin/dikt --daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+WantedBy=graphical-session.target

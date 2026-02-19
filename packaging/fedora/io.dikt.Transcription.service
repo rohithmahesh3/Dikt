@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=io.dikt.Transcription
+Exec=/usr/bin/dikt --daemon
+SystemdService=dikt.service

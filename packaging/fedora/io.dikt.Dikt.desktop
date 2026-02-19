@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Dikt
+GenericName=Speech to Text
+Comment=Configure Dikt speech-to-text settings
+Exec=dikt
+Icon=dikt
+Terminal=false
+Type=Application
+Categories=Settings;Accessibility;GNOME;GTK;
+Keywords=speech;voice;dictation;ibus;input;accessibility;
+StartupWMClass=io.dikt.Dikt
+DBusActivatable=false

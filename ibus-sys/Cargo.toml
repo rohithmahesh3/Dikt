@@ -1,0 +1,15 @@
+[package]
+name = "ibus-sys"
+version = "0.1.0"
+edition = "2021"
+description = "FFI bindings to IBus (Intelligent Input Bus)"
+links = "ibus-1.0"
+
+[build-dependencies]
+pkg-config = "0.3"
+cc = "1.0"
+
+[dependencies]
+glib-sys = "0.20"
+gobject-sys = "0.20"
+gio-sys = "0.20"

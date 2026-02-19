@@ -1,0 +1,36 @@
+# Build artifacts
+/target/
+*.o
+*.a
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+
+# Misc
+*.log
+*.local
+*.local.*
+recording_*
+.crush/
+
+# Environment
+.direnv
+.envrc
+
+# RPM build
+*.rpm
+*.tar.gz
+
+# Generated files
+packaging/fedora/ibus-dikt.spec
+packaging/fedora/dikt.xml

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <enum id="io.dikt.Transcription.LogLevel">
+    <value nick="trace" value="0"/>
+    <value nick="debug" value="1"/>
+    <value nick="info" value="2"/>
+    <value nick="warn" value="3"/>
+    <value nick="error" value="4"/>
+  </enum>
+
+  <enum id="io.dikt.Transcription.SoundTheme">
+    <value nick="marimba" value="0"/>
+    <value nick="pop" value="1"/>
+    <value nick="custom" value="2"/>
+  </enum>
+
+  <enum id="io.dikt.Transcription.ModelUnloadTimeout">
+    <value nick="never" value="0"/>
+    <value nick="immediately" value="1"/>
+    <value nick="min2" value="2"/>
+    <value nick="min5" value="3"/>
+    <value nick="min10" value="4"/>
+    <value nick="min15" value="5"/>
+    <value nick="hour1" value="6"/>
+    <value nick="sec5" value="7"/>
+  </enum>
+
+  <schema id="io.dikt.Transcription" path="/io/dikt/Transcription/">
+    <!-- Audio Feedback -->
+    <key name="audio-feedback" type="b">
+      <default>false</default>
+      <summary>Play audio feedback on start/stop</summary>
+    </key>
+
+    <key name="audio-feedback-volume" type="d">
+      <default>1.0</default>
+      <range min="0.0" max="1.0"/>
+      <summary>Audio feedback volume</summary>
+    </key>
+
+    <key name="sound-theme" enum="io.dikt.Transcription.SoundTheme">
+      <default>'marimba'</default>
+      <summary>Sound theme for audio feedback</summary>
+    </key>
+
+    <!-- Device Selection -->
+    <key name="selected-microphone" type="s">
+      <default>''</default>
+      <summary>Selected microphone device</summary>
+    </key>
+
+    <key name="selected-output-device" type="s">
+      <default>''</default>
+      <summary>Selected output device for audio feedback</summary>
+    </key>
+
+    <!-- Language -->
+    <key name="selected-language" type="s">
+      <default>'auto'</default>
+      <summary>Selected transcription language</summary>
+    </key>
+
+    <key name="translate-to-english" type="b">
+      <default>false</default>
+      <summary>Translate transcriptions to English</summary>
+    </key>
+
+    <!-- Recording -->
+    <key name="mute-while-recording" type="b">
+      <default>false</default>
+      <summary>Mute system audio while recording</summary>
+    </key>
+
+    <key name="dictation-shortcut-keyval" type="u">
+      <default>32</default>
+      <summary>Dictation shortcut key symbol (IBus/X11 keyval)</summary>
+    </key>
+
+    <key name="dictation-shortcut-modifiers" type="u">
+      <default>4</default>
+      <summary>Dictation shortcut modifier bitmask (IBus modifiers)</summary>
+    </key>
+
+    <!-- Model Settings -->
+    <key name="selected-model" type="s">
+      <default>''</default>
+      <summary>Selected transcription model</summary>
+    </key>
+
+    <key name="model-unload-timeout" enum="io.dikt.Transcription.ModelUnloadTimeout">
+      <default>'never'</default>
+      <summary>Time to keep model loaded in memory</summary>
+    </key>
+
+    <!-- Custom Words -->
+    <key name="custom-words" type="as">
+      <default>[]</default>
+      <summary>Custom words for transcription</summary>
+    </key>
+
+    <!-- Debug Settings -->
+    <key name="debug-mode" type="b">
+      <default>false</default>
+      <summary>Enable debug mode</summary>
+    </key>
+
+    <key name="log-level" enum="io.dikt.Transcription.LogLevel">
+      <default>'debug'</default>
+      <summary>Logging verbosity level</summary>
+    </key>
+
+    <key name="word-correction-threshold" type="d">
+      <default>0.18</default>
+      <range min="0.0" max="1.0"/>
+      <summary>Threshold for word correction</summary>
+    </key>
+
+    <key name="always-on-microphone" type="b">
+      <default>false</default>
+      <summary>Keep microphone always on (debug)</summary>
+    </key>
+
+    <key name="experimental-enabled" type="b">
+      <default>false</default>
+      <summary>Enable experimental features</summary>
+    </key>
+
+    <!-- Post-Processing Settings -->
+    <key name="post-process-enabled" type="b">
+      <default>false</default>
+      <summary>Enable AI post-processing</summary>
+    </key>
+
+    <key name="post-process-provider-id" type="s">
+      <default>'openai'</default>
+      <summary>Active post-processing provider</summary>
+    </key>
+
+    <key name="post-process-api-keys" type="s">
+      <default>'{}'</default>
+      <summary>API keys for providers (JSON)</summary>
+    </key>
+
+    <key name="post-process-models" type="s">
+      <default>'{}'</default>
+      <summary>Selected models for providers (JSON)</summary>
+    </key>
+
+    <key name="post-process-base-urls" type="s">
+      <default>'{}'</default>
+      <summary>Custom base URLs for providers (JSON)</summary>
+    </key>
+
+    <key name="post-process-prompts" type="s">
+      <default>'[{"id":"default_improve_transcriptions","name":"Improve Transcriptions","prompt":"Clean this transcript:\n1. Fix spelling, capitalization, and punctuation errors\n2. Convert number words to digits (twenty-five → 25, ten percent → 10%, five dollars → $5)\n3. Replace spoken punctuation with symbols (period → ., comma → ,, question mark → ?)\n4. Remove filler words (um, uh, like as filler)\n5. Keep the language in the original version (if it was french, keep it in french for example)\n\nPreserve exact meaning and word order. Do not paraphrase or reorder content.\n\nReturn only the cleaned transcript.\n\nTranscript:\n${output}"}]'</default>
+      <summary>Post-processing prompts (JSON)</summary>
+    </key>
+
+    <key name="post-process-selected-prompt-id" type="s">
+      <default>''</default>
+      <summary>Selected post-processing prompt ID</summary>
+    </key>
+  </schema>
+</schemalist>

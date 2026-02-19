@@ -1,0 +1,2 @@
+# Enable Dikt daemon at user session startup by default.
+enable dikt.service

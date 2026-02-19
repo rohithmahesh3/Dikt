@@ -1,0 +1,136 @@
+Name:           ibus-dikt
+Version:        @VERSION@
+Release:        @RELEASE@%{?dist}
+Summary:        Speech-to-text for GNOME/Wayland via IBus
+
+License:        MIT
+URL:            https://github.com/rohithmahesh3/Dikt
+Source0:        ibus-dikt-@VERSION@.tar.gz
+
+BuildRequires:  rustc, cargo
+BuildRequires:  pkgconfig(gtk4)
+BuildRequires:  pkgconfig(libadwaita-1)
+BuildRequires:  pkgconfig(graphene-gobject-1.0)
+BuildRequires:  pkgconfig(alsa)
+BuildRequires:  pkgconfig(ibus-1.0)
+BuildRequires:  pkgconfig(glib-2.0)
+BuildRequires:  pkgconfig(gobject-2.0)
+BuildRequires:  openssl-devel
+BuildRequires:  cmake
+BuildRequires:  clang-devel
+BuildRequires:  glslc
+
+Requires:       ibus >= 1.5.0
+Supplements:    (gnome-shell and fedora-release-workstation)
+
+%description
+Dikt provides speech-to-text dictation integrated with IBus
+for GNOME on Wayland. Dictation uses a global toggle shortcut and
+works through Dikt's configurable global shortcut.
+
+%prep
+%autosetup -n ibus-dikt-%{version}
+
+%build
+cargo build --release --features cli
+
+%install
+install -Dm755 target/release/dikt %{buildroot}%{_bindir}/dikt
+install -Dm755 target/release/ibus-dikt-engine %{buildroot}%{_libexecdir}/ibus-dikt-engine
+
+install -Dm644 packaging/fedora/io.dikt.Dikt.desktop %{buildroot}%{_datadir}/applications/io.dikt.Dikt.desktop
+install -Dm644 resources/icons/dikt.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/dikt.svg
+install -Dm644 resources/icons/dikt.svg %{buildroot}%{_datadir}/dikt/icons/dikt.svg
+install -Dm644 resources/models/silero_vad_v4.onnx %{buildroot}%{_datadir}/dikt/models/silero_vad_v4.onnx
+install -Dm644 resources/marimba_start.wav %{buildroot}%{_datadir}/dikt/sounds/marimba_start.wav
+install -Dm644 resources/marimba_stop.wav %{buildroot}%{_datadir}/dikt/sounds/marimba_stop.wav
+install -Dm644 resources/pop_start.wav %{buildroot}%{_datadir}/dikt/sounds/pop_start.wav
+install -Dm644 resources/pop_stop.wav %{buildroot}%{_datadir}/dikt/sounds/pop_stop.wav
+install -Dm644 packaging/fedora/io.dikt.Transcription.service %{buildroot}%{_datadir}/dbus-1/services/io.dikt.Transcription.service
+install -Dm644 packaging/fedora/dikt.service %{buildroot}%{_userunitdir}/dikt.service
+install -Dm644 packaging/fedora/90-dikt.preset %{buildroot}%{_userpresetdir}/90-dikt.preset
+install -Dm644 packaging/fedora/dikt.xml %{buildroot}%{_datadir}/ibus/component/org.freedesktop.IBus.Dikt.xml
+install -Dm644 data/io.dikt.Transcription.gschema.xml %{buildroot}%{_datadir}/glib-2.0/schemas/io.dikt.Transcription.gschema.xml
+
+%post
+%systemd_user_post dikt.service
+ibus write-cache 2>/dev/null || :
+glib-compile-schemas %{_datadir}/glib-2.0/schemas 2>/dev/null || :
+
+%preun
+%systemd_user_preun dikt.service
+
+%postun
+%systemd_user_postun dikt.service
+ibus write-cache 2>/dev/null || :
+glib-compile-schemas %{_datadir}/glib-2.0/schemas 2>/dev/null || :
+
+%files
+%doc README.md
+%license LICENSE
+%{_bindir}/dikt
+%{_libexecdir}/ibus-dikt-engine
+%{_datadir}/dikt/icons/dikt.svg
+%{_datadir}/dikt/models/silero_vad_v4.onnx
+%{_datadir}/dikt/sounds/marimba_start.wav
+%{_datadir}/dikt/sounds/marimba_stop.wav
+%{_datadir}/dikt/sounds/pop_start.wav
+%{_datadir}/dikt/sounds/pop_stop.wav
+%{_datadir}/ibus/component/org.freedesktop.IBus.Dikt.xml
+%{_datadir}/applications/io.dikt.Dikt.desktop
+%{_datadir}/icons/hicolor/scalable/apps/dikt.svg
+%{_datadir}/dbus-1/services/io.dikt.Transcription.service
+%{_datadir}/glib-2.0/schemas/io.dikt.Transcription.gschema.xml
+%{_userunitdir}/dikt.service
+%{_userpresetdir}/90-dikt.preset
+
+%changelog
+* Tue Feb 17 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-10
+- Fix model download crash by running async HTTP download inside a dedicated Tokio runtime thread
+- Fix stretched switch rendering in General/Advanced pages by forcing centered non-expanding suffix switches
+
+* Tue Feb 17 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-9
+- Decouple UI startup from daemon runtime initialization so preferences window opens reliably
+- Add safe fallback from always-on microphone mode to on-demand mode on init failures
+
+* Tue Feb 17 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-8
+- Fix models page startup hang caused by invalid AdwPreferencesGroup child removal
+- Remove unsafe periodic model row refresh loop in UI
+
+* Tue Feb 17 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-7
+- Align desktop file identity with GTK app ID for proper GNOME dock icon matching
+- Set StartupWMClass to io.dikt.Dikt
+- Use themed icon name for IBus engine metadata
+
+* Tue Feb 17 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-6
+- Fix switch row focus/activation visual regression in settings UI
+- Restore native PreferencesGroup model row rendering and button spacing
+
+* Mon Feb 16 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-5
+- Classify Dikt as a special-purpose IBus source (language=other, layout=default)
+- Improve IBus engine lifecycle handling when enabling/disabling the input source
+- Refresh model list UI state live and show real download progress/cancel action
+- Improve preferences page layout consistency using Adwaita clamps
+
+* Sun Feb 15 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-4
+- Add daemon mode for D-Bus/service activation (no UI popup on auto-start)
+- Install required runtime assets (Silero VAD model and feedback sounds)
+- Sync runtime managers with GSettings changes
+- Persist selected model and improve model selection consistency
+- Make IBus stop/transcribe path non-blocking
+
+* Sat Feb 14 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-3
+- Fix over-constrained settings pages by removing extra clamp wrappers
+- Keep full-width adaptive layout for General, Models, and Advanced pages
+
+* Fri Feb 13 2026 Dikt Team <rohith@tequirist.com> - 0.7.5-2
+- Fix IBus component registration metadata
+- Install IBus component to /usr/share/ibus/component/
+- Improve Libadwaita preferences page layout and sidebar behavior
+- Reduce redundant Cargo dependencies
+
+* Sun Feb 16 2025 Dikt Team <rohith@tequirist.com> - 0.7.5-1
+- Rewritten as native GTK4/Libadwaita application
+- IBus engine rewritten in Rust (no Python dependency)
+- Removed all JavaScript/TypeScript frontend dependencies
+- GNOME/Wayland only fork

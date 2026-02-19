@@ -1,0 +1,4 @@
+# Allow global toggle shortcut keyboard input access for the active desktop user.
+# This ensures the Dikt daemon can read keyboard events via evdev
+# for global toggle shortcut detection on Wayland.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_KEYBOARD}=="1", TAG+="uaccess"

@@ -1,0 +1,87 @@
+[package]
+name = "dikt"
+version = "0.10.0"
+description = "Speech-to-text for GNOME/Wayland via IBus"
+authors = ["rohithmahesh"]
+edition = "2021"
+license = "MIT"
+default-run = "dikt"
+
+[profile.dev]
+incremental = true
+
+[lib]
+name = "dikt_app_lib"
+crate-type = ["rlib"]
+
+[[bin]]
+name = "dikt"
+path = "src/main.rs"
+
+[[bin]]
+name = "ibus-dikt-engine"
+path = "src/bin/ibus-dikt-engine.rs"
+required-features = ["cli"]
+
+[dependencies]
+# GTK4 / Libadwaita
+gtk4 = "0.9"
+libadwaita = "0.7"
+glib = "0.20"
+gio = "0.20"
+
+# Audio
+cpal = "0.16.0"
+rodio = { version = "0.20", default-features = false, features = ["wav"] }
+rubato = "0.16.2"
+hound = "3.5.1"
+
+# Async / HTTP
+reqwest = { version = "0.12", features = ["json", "stream"] }
+futures-util = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# Transcription
+transcribe-rs = { version = "0.2.3", features = ["whisper", "parakeet", "moonshine", "sense_voice"] }
+vad-rs = { git = "https://github.com/cjpais/vad-rs", default-features = false }
+
+# D-Bus for IBus
+zbus = "4.4"
+
+# Input monitoring
+evdev = { version = "0.12", features = ["tokio"] }
+xkbcommon = "0.8"
+
+# Utils
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1.0.95"
+log = "0.4.25"
+env_logger = "0.11"
+regex = "1"
+strsim = "0.11.0"
+natural = "0.5.0"
+rustfft = "6.4.0"
+tar = "0.4.44"
+flate2 = "1.0"
+ferrous-opencc = "0.2.3"
+dirs = "6"
+notify-rust = "4"
+ctrlc = "3.4"
+
+# CLI (for ibus-dikt-engine binary only)
+clap = { version = "4", features = ["derive"], optional = true }
+clap-verbosity-flag = { version = "3", optional = true }
+
+# IBus bindings
+ibus-sys = { path = "ibus-sys" }
+
+[features]
+default = []
+cli = ["clap", "clap-verbosity-flag"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
