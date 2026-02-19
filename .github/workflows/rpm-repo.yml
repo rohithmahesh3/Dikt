@@ -68,12 +68,12 @@ jobs:
           DIST="fc43"
 
           # Configure rpmmacros for signing
-          cat >> ~/.rpmmacros << EOF
-          %_gpg_name $GPG_KEY_ID
+          cat > ~/.rpmmacros << 'MACROSEOF'
+          %_gpg_name ${GPG_KEY_ID}
           %_signature gpg
-          %__gpg /usr/bin/gpg
-          %__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
-          EOF
+          %__gpg_sign_cmd GPG_TTY=/dev/null %{__gpg} --batch --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+          MACROSEOF
+          export GPG_KEY_ID
 
           for rpm in ibus-dikt-${VERSION}-${RELEASE}.${DIST}*.rpm; do
             [ -f "$rpm" ] || continue
