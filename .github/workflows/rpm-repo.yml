@@ -47,6 +47,12 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          # Configure GPG for non-interactive use
+          mkdir -p ~/.gnupg
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "use-agent" >> ~/.gnupg/gpg.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpgconf --kill gpg-agent
 
       - name: Build RPMs
         run: |
@@ -61,11 +67,19 @@ jobs:
           RELEASE=$(cat RELEASE)
           DIST="fc43"
 
+          # Configure rpmmacros for signing
+          cat >> ~/.rpmmacros << EOF
+          %_gpg_name $GPG_KEY_ID
+          %_signature gpg
+          %__gpg /usr/bin/gpg
+          %__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+          EOF
+
           for rpm in ibus-dikt-${VERSION}-${RELEASE}.${DIST}*.rpm; do
             [ -f "$rpm" ] || continue
             echo "Signing: $rpm"
             rpm --delsign "$rpm" 2>/dev/null || true
-            rpmsign --addsign --key-id="$GPG_KEY_ID" "$rpm"
+            rpmsign --addsign "$rpm"
             rpm --checksig "$rpm"
           done
 
