@@ -1,0 +1,160 @@
+name: Build and Publish RPM Repository
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REPO_URL: https://rohithmahesh3.github.io/dikt-rpm
+  LANDING_URL: https://dikt.tequerist.com
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    container: fedora:43
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf -y install \
+            rustc cargo \
+            gtk4-devel libadwaita-devel \
+            alsa-lib-devel ibus-devel \
+            openssl-devel cmake clang-devel glslc \
+            rpm-build rpm-sign createrepo_c \
+            git rsync tar gzip gnupg2
+
+      - name: Checkout Dikt
+        uses: actions/checkout@v4
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Build RPMs
+        run: |
+          chmod +x build-rpm.sh
+          ./build-rpm.sh
+
+      - name: Sign RPMs
+        env:
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          RELEASE=$(cat RELEASE)
+          DIST="fc43"
+
+          for rpm in ibus-dikt-${VERSION}-${RELEASE}.${DIST}*.rpm; do
+            [ -f "$rpm" ] || continue
+            echo "Signing: $rpm"
+            rpm --delsign "$rpm" 2>/dev/null || true
+            rpmsign --addsign --key-id="$GPG_KEY_ID" "$rpm"
+            rpm --checksig "$rpm"
+          done
+
+      - name: Create repository
+        env:
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          mkdir -p repo
+          cp ibus-dikt-*.rpm repo/ 2>/dev/null || true
+          cd repo
+
+          # Create repodata
+          createrepo_c .
+
+          # Sign repomd.xml (best practice)
+          gpg --batch --yes --detach-sign --armor repodata/repomd.xml
+
+          # Create dikt.repo
+          cat > dikt.repo << EOF
+          [dikt]
+          name=Dikt Speech-to-Text Repository
+          baseurl=${{ env.REPO_URL }}
+          enabled=1
+          gpgcheck=1
+          repo_gpgcheck=1
+          gpgkey=${{ env.LANDING_URL }}/gpg.key
+          EOF
+
+          # Create index.html
+          cat > index.html << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Dikt RPM Repository</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 700px; margin: 50px auto; padding: 20px; }
+              code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }
+              pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; overflow-x: auto; }
+              pre code { background: none; padding: 0; }
+              .green { color: #22c55e; }
+              .cyan { color: #06b6d4; }
+            </style>
+          </head>
+          <body>
+            <h1>Dikt RPM Repository</h1>
+            <p>Speech-to-Text for GNOME/Wayland</p>
+
+            <h2>Install</h2>
+            <pre><code><span class="green">$</span> sudo dnf config-manager --add-repo ${{ env.REPO_URL }}/dikt.repo
+          <span class="green">$</span> sudo dnf install <span class="cyan">ibus-dikt</span></code></pre>
+
+            <h2>Files</h2>
+            <ul>
+              <li><a href="dikt.repo">dikt.repo</a> - Repository configuration</li>
+              <li><a href="repodata/">repodata/</a> - Repository metadata</li>
+            </ul>
+
+            <p><a href="${{ env.LANDING_URL }}">${{ env.LANDING_URL }}</a></p>
+          </body>
+          </html>
+          EOF
+
+      - name: Checkout dikt-rpm
+        uses: actions/checkout@v4
+        with:
+          repository: rohithmahesh3/dikt-rpm
+          token: ${{ secrets.DIKT_RPM_PAT }}
+          path: dikt-rpm
+
+      - name: Deploy to dikt-rpm
+        run: |
+          cd dikt-rpm
+
+          # Clean old files
+          find . -maxdepth 1 -type f -delete
+          rm -rf repodata
+
+          # Copy new files
+          cp -r $GITHUB_WORKSPACE/repo/* .
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Get version
+          VERSION=$(grep '^version = ' $GITHUB_WORKSPACE/Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+
+          # Commit and push
+          git add -A
+          git diff --quiet && git diff --staged --quiet || git commit -m "Release v${VERSION}"
+          git push
