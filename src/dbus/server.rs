@@ -854,7 +854,7 @@ impl DiktTranscription {
         );
         let start_time = Instant::now();
 
-        if !self.state.transcription_manager.has_model_selected() {
+        if !self.state.transcription_manager.refresh_and_has_model_selected() {
             self.emit_error(
                 "No model selected. Open Dikt preferences to download and select a model.",
             )

@@ -302,7 +302,11 @@ pub fn run_ui() {
 pub fn run_daemon() {
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    let (_runtime_state, dikt_state) = match init_runtime() {
+    // Keep runtime_state alive for the daemon's lifetime.
+    // It contains the Settings object with GSettings signal handlers.
+    // If dropped, all settings change notifications would be disconnected.
+    #[allow(unused_variables)]
+    let (runtime_state, dikt_state) = match init_runtime() {
         Ok(state) => state,
         Err(e) => {
             eprintln!("Failed to initialize Dikt daemon runtime: {}", e);

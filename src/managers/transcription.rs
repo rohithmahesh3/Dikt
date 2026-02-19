@@ -165,6 +165,16 @@ impl TranscriptionManager {
             .unwrap_or(false)
     }
 
+    /// Refreshes model download status from filesystem and then checks if a model is selected.
+    /// This should be used before critical operations (like recording) to ensure
+    /// the daemon sees models that were downloaded by other processes (e.g., the UI).
+    pub fn refresh_and_has_model_selected(&self) -> bool {
+        if let Err(e) = self.model_manager.refresh_download_status() {
+            warn!("Failed to refresh model download status: {}", e);
+        }
+        self.has_model_selected()
+    }
+
     pub fn unload_model(&self) -> Result<()> {
         debug!("Unloading model");
 

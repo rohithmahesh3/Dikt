@@ -529,6 +529,12 @@ impl ModelManager {
         Ok(())
     }
 
+    /// Public method to refresh download status from filesystem.
+    /// This is useful when the daemon needs to detect models downloaded by other processes.
+    pub fn refresh_download_status(&self) -> Result<()> {
+        self.update_download_status()
+    }
+
     fn auto_select_model_if_needed(&self) -> Result<()> {
         let selected = self.selected_model.lock().unwrap().clone();
         let models = self.available_models.lock().unwrap();
@@ -1173,6 +1179,10 @@ impl ModelManager {
     }
 
     pub fn sync_selected_model_from_settings(&self) -> Result<()> {
+        // Refresh download status from filesystem to catch models downloaded
+        // by other processes (e.g., UI downloaded while daemon was running)
+        self.update_download_status()?;
+
         let selected = crate::settings::Settings::new().selected_model();
         let models = self.available_models.lock().unwrap();
 
