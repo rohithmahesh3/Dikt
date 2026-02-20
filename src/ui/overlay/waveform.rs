@@ -34,7 +34,11 @@ impl WaveformOverlay {
             .default_width(OVERLAY_WIDTH)
             .default_height(OVERLAY_HEIGHT)
             .visible(false)
+            .can_focus(false) // Prevent stealing focus from active application
             .build();
+
+        // Additional focus prevention - set as non-focusable overlay
+        window.set_focusable(false);
 
         // Create the drawing area for rendering bars
         let drawing_area = DrawingArea::builder()
