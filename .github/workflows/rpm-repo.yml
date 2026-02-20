@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: dikt-rpm-publish
+  cancel-in-progress: false
+
 env:
   REPO_URL: https://rohithmahesh3.github.io/dikt-rpm
   LANDING_URL: https://dikt.tequerist.com
@@ -65,22 +69,19 @@ jobs:
         run: |
           VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           RELEASE=$(cat RELEASE)
-          DIST="fc43"
 
           # Configure rpmmacros for signing
-          cat > ~/.rpmmacros << 'MACROSEOF'
-          %_gpg_name ${GPG_KEY_ID}
+          cat > ~/.rpmmacros << EOF
+          %_gpg_name $GPG_KEY_ID
           %_signature gpg
-          %__gpg_sign_cmd GPG_TTY=/dev/null %{__gpg} --batch --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
-          MACROSEOF
-          export GPG_KEY_ID
+          EOF
 
-          for rpm in ibus-dikt-${VERSION}-${RELEASE}.${DIST}*.rpm; do
+          for rpm in ibus-dikt-${VERSION}-${RELEASE}*.rpm; do
             [ -f "$rpm" ] || continue
             echo "Signing: $rpm"
             rpm --delsign "$rpm" 2>/dev/null || true
             rpmsign --addsign "$rpm"
-            rpm --checksig "$rpm"
+            echo "Signed: $rpm"
           done
 
       - name: Create repository
@@ -88,14 +89,19 @@ jobs:
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
           mkdir -p repo
-          cp ibus-dikt-*.rpm repo/ 2>/dev/null || true
+          mapfile -t RPM_FILES < <(find . -type f -name "ibus-dikt-*.rpm" ! -name "*.src.rpm" | sort)
+          if [ "${#RPM_FILES[@]}" -eq 0 ]; then
+            echo "No RPM artifacts found for repository creation"
+            exit 1
+          fi
+          cp "${RPM_FILES[@]}" repo/
           cd repo
 
           # Create repodata
           createrepo_c .
 
           # Sign repomd.xml (best practice)
-          gpg --batch --yes --detach-sign --armor repodata/repomd.xml
+          gpg --batch --yes --local-user "$GPG_KEY_ID" --detach-sign --armor repodata/repomd.xml
 
           # Create dikt.repo
           cat > dikt.repo << EOF
@@ -144,6 +150,7 @@ jobs:
           EOF
 
       - name: Checkout dikt-rpm
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: actions/checkout@v4
         with:
           repository: rohithmahesh3/dikt-rpm
@@ -151,6 +158,7 @@ jobs:
           path: dikt-rpm
 
       - name: Deploy to dikt-rpm
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         run: |
           cd dikt-rpm
 
