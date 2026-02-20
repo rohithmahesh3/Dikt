@@ -70,12 +70,28 @@ jobs:
           VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           RELEASE=$(cat RELEASE)
 
-          # Configure rpmmacros for signing (with loopback for headless CI)
+          # Configure rpmmacros for signing using supported high-level macros.
           cat > ~/.rpmmacros << EOF
-          %_gpg_name $GPG_KEY_ID
           %_signature gpg
-          %__gpg_sign_cmd /usr/bin/env GPG_TTY=/dev/null %{__gpg} --batch --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{2} -- %{1}
+          %_openpgp_sign gpg
+          %_openpgp_sign_id $GPG_KEY_ID
+          %_gpg_name $GPG_KEY_ID
+          %_gpg_sign_cmd_extra_args --batch --pinentry-mode loopback
           EOF
+
+          export GPG_TTY=/dev/null
+
+          # Preflight checks for key presence and rpm macro resolution.
+          if [ -z "$GPG_KEY_ID" ]; then
+            echo "GPG_KEY_ID is not set"
+            exit 1
+          fi
+          gpg --batch --list-secret-keys "$GPG_KEY_ID" >/dev/null || {
+            echo "Secret key $GPG_KEY_ID is not available in keyring"
+            exit 1
+          }
+          rpm --eval '%{_openpgp_sign_id}'
+          rpm --eval '%{_gpg_sign_cmd_extra_args}'
 
           # Find and sign all RPMs (including subdirs, excluding src.rpm)
           mapfile -t RPM_FILES < <(find . -type f -name "ibus-dikt-${VERSION}-${RELEASE}*.rpm" ! -name "*.src.rpm" | sort)
