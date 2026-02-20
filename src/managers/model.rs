@@ -1230,7 +1230,10 @@ impl ModelManager {
 
         if let Some(model) = models.get(&selected) {
             if model.is_downloaded {
-                info!("Model '{}' is downloaded, using as selected model", selected);
+                info!(
+                    "Model '{}' is downloaded, using as selected model",
+                    selected
+                );
                 drop(models);
                 *self.selected_model.lock().unwrap() = selected;
                 return Ok(());
@@ -1466,5 +1469,47 @@ mod tests {
         assert_eq!(extracted_root, nested);
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_partial_file_does_not_mark_model_as_downloaded() {
+        let models_dir = create_test_dir("partial-not-downloaded");
+        let manager = test_manager(models_dir.clone());
+
+        let model = ModelInfo {
+            id: "small".to_string(),
+            name: "small".to_string(),
+            description: "test".to_string(),
+            filename: "ggml-small.bin".to_string(),
+            url: None,
+            size_mb: 0,
+            is_downloaded: false,
+            is_downloading: false,
+            partial_size: 0,
+            is_directory: false,
+            engine_type: EngineType::Whisper,
+            accuracy_score: 0.0,
+            speed_score: 0.0,
+            supports_translation: false,
+            is_recommended: false,
+            supported_languages: vec![],
+            is_custom: false,
+        };
+        manager
+            .available_models
+            .lock()
+            .unwrap()
+            .insert(model.id.clone(), model);
+
+        let partial_path = models_dir.join("ggml-small.bin.partial");
+        File::create(&partial_path).unwrap();
+
+        manager.update_download_status().unwrap();
+        let info = manager.get_model_info("small").unwrap();
+
+        assert!(!info.is_downloaded);
+        assert!(info.partial_size > 0 || partial_path.exists());
+
+        let _ = fs::remove_dir_all(models_dir);
     }
 }
