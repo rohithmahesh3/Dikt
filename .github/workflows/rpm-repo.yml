@@ -74,7 +74,7 @@ jobs:
           cat > ~/.rpmmacros << EOF
           %_gpg_name $GPG_KEY_ID
           %_signature gpg
-          %__gpg_sign_cmd /usr/bin/env GPG_TTY=/dev/null %{__gpg} --batch --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+          %__gpg_sign_cmd /usr/bin/env GPG_TTY=/dev/null %{__gpg} --batch --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{2} -- %{1}
           EOF
 
           # Find and sign all RPMs (including subdirs, excluding src.rpm)
