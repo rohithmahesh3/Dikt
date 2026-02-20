@@ -148,9 +148,13 @@ cargo run --bin ibus-dikt-engine -- --ibus
 ## Roadmap
 
 - [ ] Additional distribution packages (Arch, Debian, openSUSE)
-- [ ] Wayland-only global shortcuts via portal
-- [ ] Custom vocabulary support
-- [ ] Real-time transcription preview
+- [ ] Custom vocabulary GUI integration
+- [x] Real-time transcription preview
+- [x] Global shortcuts on Wayland
+
+## Notes
+
+This project was built for personal use and shared in case others find it useful. As a hobbyist in this domain, the implementation may not follow all best practices. Bug reports and suggestions are welcome.
 
 ## Contributing
 
