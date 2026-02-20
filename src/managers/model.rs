@@ -496,10 +496,18 @@ impl ModelManager {
 
                 model.is_downloaded =
                     match self.repair_and_validate_directory_model(model, &model_path) {
-                        Ok(valid) => valid,
+                        Ok(valid) => {
+                            info!(
+                                "Model '{}' validation: {} (path: {})",
+                                model.id,
+                                if valid { "valid" } else { "invalid" },
+                                model_path.display()
+                            );
+                            valid
+                        }
                         Err(e) => {
                             warn!(
-                                "Failed to validate model {} at {}: {}",
+                                "Failed to validate model '{}' at {}: {}",
                                 model.id,
                                 model_path.display(),
                                 e
@@ -549,7 +557,24 @@ impl ModelManager {
                 .unwrap_or(false);
 
         if is_valid_selected {
+            info!("Model selection valid: '{}' is downloaded", selected);
             return Ok(());
+        }
+
+        // Log why we're falling back
+        if selected.is_empty() {
+            info!("No model selected in settings, auto-selecting fallback");
+        } else {
+            let model = models.get(&selected);
+            let status = match model {
+                Some(m) if !m.is_downloaded => "not downloaded",
+                Some(_) => "downloaded but validation failed",
+                None => "not found in available models",
+            };
+            info!(
+                "Selected model '{}' is {}, auto-selecting fallback",
+                selected, status
+            );
         }
 
         let fallback = models
@@ -560,12 +585,17 @@ impl ModelManager {
         drop(models);
 
         if let Some(model_id) = fallback {
-            info!("Auto-selecting model: {}", model_id);
+            info!(
+                "Auto-selecting fallback model (in-memory only): '{}'",
+                model_id
+            );
             *self.selected_model.lock().unwrap() = model_id.clone();
-            crate::settings::Settings::new().set_selected_model(&model_id);
+            // Don't persist fallback to GSettings - user's selection should be preserved
+            // so that when their chosen model becomes available, it will be used
         } else {
+            info!("No downloaded models available for fallback selection");
             *self.selected_model.lock().unwrap() = String::new();
-            crate::settings::Settings::new().set_selected_model("");
+            // Don't persist empty selection to GSettings either
         }
 
         Ok(())
@@ -1187,9 +1217,12 @@ impl ModelManager {
         self.update_download_status()?;
 
         let selected = crate::settings::Settings::new().selected_model();
+        info!("Syncing model selection from settings: '{}'", selected);
+
         let models = self.available_models.lock().unwrap();
 
         if selected.is_empty() {
+            info!("No model selected in settings");
             drop(models);
             *self.selected_model.lock().unwrap() = String::new();
             return Ok(());
@@ -1197,10 +1230,21 @@ impl ModelManager {
 
         if let Some(model) = models.get(&selected) {
             if model.is_downloaded {
+                info!(
+                    "Model '{}' is downloaded, using as selected model",
+                    selected
+                );
                 drop(models);
                 *self.selected_model.lock().unwrap() = selected;
                 return Ok(());
+            } else {
+                info!(
+                    "Model '{}' exists but is not downloaded, will use fallback",
+                    selected
+                );
             }
+        } else {
+            info!("Model '{}' not found in available models", selected);
         }
 
         drop(models);
@@ -1425,5 +1469,47 @@ mod tests {
         assert_eq!(extracted_root, nested);
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_partial_file_does_not_mark_model_as_downloaded() {
+        let models_dir = create_test_dir("partial-not-downloaded");
+        let manager = test_manager(models_dir.clone());
+
+        let model = ModelInfo {
+            id: "small".to_string(),
+            name: "small".to_string(),
+            description: "test".to_string(),
+            filename: "ggml-small.bin".to_string(),
+            url: None,
+            size_mb: 0,
+            is_downloaded: false,
+            is_downloading: false,
+            partial_size: 0,
+            is_directory: false,
+            engine_type: EngineType::Whisper,
+            accuracy_score: 0.0,
+            speed_score: 0.0,
+            supports_translation: false,
+            is_recommended: false,
+            supported_languages: vec![],
+            is_custom: false,
+        };
+        manager
+            .available_models
+            .lock()
+            .unwrap()
+            .insert(model.id.clone(), model);
+
+        let partial_path = models_dir.join("ggml-small.bin.partial");
+        File::create(&partial_path).unwrap();
+
+        manager.update_download_status().unwrap();
+        let info = manager.get_model_info("small").unwrap();
+
+        assert!(!info.is_downloaded);
+        assert!(info.partial_size > 0 || partial_path.exists());
+
+        let _ = fs::remove_dir_all(models_dir);
     }
 }

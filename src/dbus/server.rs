@@ -87,6 +87,17 @@ impl PendingCommitStore {
         (false, String::new())
     }
 
+    fn has_for_session_claim(&self, session_id: u64, claim_token: &str) -> bool {
+        self.inner
+            .lock()
+            .map(|queue| {
+                queue
+                    .iter()
+                    .any(|entry| entry.session_id == session_id && entry.claim_token == claim_token)
+            })
+            .unwrap_or(false)
+    }
+
     fn stats_json(&self) -> String {
         let dropped_count = self.dropped_count.load(Ordering::SeqCst);
         if let Ok(queue) = self.inner.lock() {
@@ -378,59 +389,29 @@ impl DiktState {
         let Ok(bindings) = self.session_bindings.lock() else {
             return (0, String::new(), false);
         };
+        let bindings_snapshot = bindings.clone();
+        drop(bindings);
         let Ok(claims) = self.session_claim_tokens.lock() else {
             return (0, String::new(), false);
         };
+        let claims_snapshot = claims.clone();
+        drop(claims);
         let Ok(statuses) = self.session_statuses.lock() else {
             return (0, String::new(), false);
         };
+        let statuses_snapshot = statuses.clone();
+        drop(statuses);
 
-        let mut best: Option<(u8, u64, u64, String, bool)> = None;
-        for (session_id, bound_engine_id) in bindings.iter() {
-            if *bound_engine_id != engine_id {
-                continue;
-            }
-            let Some(status) = statuses.get(session_id) else {
-                continue;
-            };
-            let Some(claim_token) = claims.get(session_id) else {
-                continue;
-            };
-            let (priority, allow_preedit) = match status.state.as_str() {
-                "recording" => (3, true),
-                "finalizing" => (2, false),
-                "ready" => (1, false),
-                _ => (0, false),
-            };
-            if priority == 0 {
-                continue;
-            }
-            let candidate = (
-                priority,
-                status.updated_ms,
-                *session_id,
-                claim_token.clone(),
-                allow_preedit,
-            );
-            if let Some(current) = &best {
-                if candidate.0 > current.0
-                    || (candidate.0 == current.0 && candidate.1 > current.1)
-                    || (candidate.0 == current.0
-                        && candidate.1 == current.1
-                        && candidate.2 > current.2)
-                {
-                    best = Some(candidate);
-                }
-            } else {
-                best = Some(candidate);
-            }
-        }
-
-        if let Some((_, _, session_id, claim_token, allow_preedit)) = best {
-            (session_id, claim_token, allow_preedit)
-        } else {
-            (0, String::new(), false)
-        }
+        select_active_session_for_engine(
+            engine_id,
+            &bindings_snapshot,
+            &claims_snapshot,
+            &statuses_snapshot,
+            |session_id, claim_token| {
+                self.pending_commit
+                    .has_for_session_claim(session_id, claim_token)
+            },
+        )
     }
 
     fn store_pending_commit(&self, session_id: u64, text: String) {
@@ -540,6 +521,65 @@ impl DiktState {
             .lock()
             .map(|sessions| sessions.contains(&session_id))
             .unwrap_or(false)
+    }
+}
+
+fn select_active_session_for_engine<F>(
+    engine_id: u64,
+    bindings: &HashMap<u64, u64>,
+    claims: &HashMap<u64, String>,
+    statuses: &HashMap<u64, SessionStatusEntry>,
+    has_pending: F,
+) -> (u64, String, bool)
+where
+    F: Fn(u64, &str) -> bool,
+{
+    let mut best: Option<(u8, u64, u64, String, bool)> = None;
+
+    for (session_id, bound_engine_id) in bindings {
+        if *bound_engine_id != engine_id {
+            continue;
+        }
+        let Some(status) = statuses.get(session_id) else {
+            continue;
+        };
+        let Some(claim_token) = claims.get(session_id) else {
+            continue;
+        };
+
+        let (priority, allow_preedit) = match status.state.as_str() {
+            "recording" => (3, true),
+            "finalizing" => (2, false),
+            "ready" if has_pending(*session_id, claim_token.as_str()) => (1, false),
+            _ => (0, false),
+        };
+        if priority == 0 {
+            continue;
+        }
+
+        let candidate = (
+            priority,
+            status.updated_ms,
+            *session_id,
+            claim_token.clone(),
+            allow_preedit,
+        );
+        if let Some(current) = &best {
+            if candidate.0 > current.0
+                || (candidate.0 == current.0 && candidate.1 > current.1)
+                || (candidate.0 == current.0 && candidate.1 == current.1 && candidate.2 > current.2)
+            {
+                best = Some(candidate);
+            }
+        } else {
+            best = Some(candidate);
+        }
+    }
+
+    if let Some((_, _, session_id, claim_token, allow_preedit)) = best {
+        (session_id, claim_token, allow_preedit)
+    } else {
+        (0, String::new(), false)
     }
 }
 
@@ -1456,7 +1496,10 @@ pub async fn stop_dbus_server(dbus_state: &DiktDbusState) -> Result<(), String> 
 
 #[cfg(test)]
 mod tests {
-    use super::{LivePreeditStore, PendingCommitStore};
+    use super::{
+        select_active_session_for_engine, LivePreeditStore, PendingCommitStore, SessionStatusEntry,
+    };
+    use std::collections::HashMap;
     use std::time::Duration;
 
     #[test]
@@ -1520,6 +1563,86 @@ mod tests {
         assert_eq!(first, (true, "first".to_string()));
         assert_eq!(second, (true, "second".to_string()));
         assert_eq!(third, (true, "third".to_string()));
+    }
+
+    #[test]
+    fn pending_commit_store_has_for_session_claim_matches_exact_claim() {
+        let store = PendingCommitStore::default();
+        store.store(10, "claim-10".to_string(), "first".to_string());
+
+        assert!(store.has_for_session_claim(10, "claim-10"));
+        assert!(!store.has_for_session_claim(10, "claim-other"));
+        assert!(!store.has_for_session_claim(11, "claim-10"));
+    }
+
+    #[test]
+    fn select_active_session_prefers_ready_with_pending_over_newer_ready_without_pending() {
+        let mut bindings = HashMap::new();
+        bindings.insert(1, 99);
+        bindings.insert(2, 99);
+
+        let mut claims = HashMap::new();
+        claims.insert(1, "claim-1".to_string());
+        claims.insert(2, "claim-2".to_string());
+
+        let mut statuses = HashMap::new();
+        statuses.insert(1, SessionStatusEntry::new("ready", "with pending"));
+        statuses.insert(2, SessionStatusEntry::new("ready", "without pending"));
+        if let Some(entry) = statuses.get_mut(&1) {
+            entry.updated_ms = 100;
+        }
+        if let Some(entry) = statuses.get_mut(&2) {
+            entry.updated_ms = 200;
+        }
+
+        let selected = select_active_session_for_engine(
+            99,
+            &bindings,
+            &claims,
+            &statuses,
+            |session, claim| session == 1 && claim == "claim-1",
+        );
+        assert_eq!(selected, (1, "claim-1".to_string(), false));
+    }
+
+    #[test]
+    fn select_active_session_prefers_recording_over_ready_with_pending() {
+        let mut bindings = HashMap::new();
+        bindings.insert(1, 99);
+        bindings.insert(2, 99);
+
+        let mut claims = HashMap::new();
+        claims.insert(1, "claim-ready".to_string());
+        claims.insert(2, "claim-recording".to_string());
+
+        let mut statuses = HashMap::new();
+        statuses.insert(1, SessionStatusEntry::new("ready", "ready"));
+        statuses.insert(2, SessionStatusEntry::new("recording", "recording"));
+
+        let selected = select_active_session_for_engine(
+            99,
+            &bindings,
+            &claims,
+            &statuses,
+            |session, claim| session == 1 && claim == "claim-ready",
+        );
+        assert_eq!(selected, (2, "claim-recording".to_string(), true));
+    }
+
+    #[test]
+    fn select_active_session_skips_ready_without_pending() {
+        let mut bindings = HashMap::new();
+        bindings.insert(1, 99);
+
+        let mut claims = HashMap::new();
+        claims.insert(1, "claim-1".to_string());
+
+        let mut statuses = HashMap::new();
+        statuses.insert(1, SessionStatusEntry::new("ready", "no pending"));
+
+        let selected =
+            select_active_session_for_engine(99, &bindings, &claims, &statuses, |_, _| false);
+        assert_eq!(selected, (0, String::new(), false));
     }
 
     #[test]
