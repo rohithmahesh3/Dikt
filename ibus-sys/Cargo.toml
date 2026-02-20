@@ -1,6 +1,6 @@
 [package]
 name = "ibus-sys"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "FFI bindings to IBus (Intelligent Input Bus)"
 links = "ibus-1.0"

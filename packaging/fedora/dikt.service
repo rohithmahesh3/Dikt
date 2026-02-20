@@ -9,6 +9,7 @@ BusName=io.dikt.Transcription
 ExecStart=/usr/bin/dikt --daemon
 Restart=on-failure
 RestartSec=5
+PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY
 
 [Install]
 WantedBy=default.target

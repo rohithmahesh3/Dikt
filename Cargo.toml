@@ -1,6 +1,6 @@
 [package]
 name = "dikt"
-version = "0.1.0"
+version = "0.1.1"
 description = "Speech-to-text for GNOME/Wayland via IBus"
 authors = ["rohithmahesh"]
 edition = "2021"
