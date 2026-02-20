@@ -2,6 +2,7 @@
 Description=Dikt Speech-to-Text Service
 After=graphical-session.target
 Requires=graphical-session.target
+ConditionUser=!gdm
 
 [Service]
 Type=dbus
