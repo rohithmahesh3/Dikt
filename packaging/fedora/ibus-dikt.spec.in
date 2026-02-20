@@ -54,6 +54,7 @@ install -Dm644 data/io.dikt.Transcription.gschema.xml %{buildroot}%{_datadir}/gl
 
 %post
 %systemd_user_post dikt.service
+systemctl --user start dikt.service 2>/dev/null || :
 ibus write-cache 2>/dev/null || :
 glib-compile-schemas %{_datadir}/glib-2.0/schemas 2>/dev/null || :
 
@@ -64,6 +65,9 @@ glib-compile-schemas %{_datadir}/glib-2.0/schemas 2>/dev/null || :
 %systemd_user_postun dikt.service
 ibus write-cache 2>/dev/null || :
 glib-compile-schemas %{_datadir}/glib-2.0/schemas 2>/dev/null || :
+if [ $1 -ge 1 ]; then
+    systemctl --user restart dikt.service 2>/dev/null || :
+fi
 
 %files
 %doc README.md
