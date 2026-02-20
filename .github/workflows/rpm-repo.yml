@@ -70,14 +70,15 @@ jobs:
           VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           RELEASE=$(cat RELEASE)
 
-          # Configure rpmmacros for signing
+          # Configure rpmmacros for signing (with loopback for headless CI)
           cat > ~/.rpmmacros << EOF
           %_gpg_name $GPG_KEY_ID
           %_signature gpg
+          %__gpg_sign_cmd %{__gpg} gpg --batch --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
           EOF
 
-          for rpm in ibus-dikt-${VERSION}-${RELEASE}*.rpm; do
-            [ -f "$rpm" ] || continue
+          # Find and sign all RPMs (including subdirs)
+          find . -type f -name "ibus-dikt-${VERSION}-${RELEASE}*.rpm" | while read rpm; do
             echo "Signing: $rpm"
             rpm --delsign "$rpm" 2>/dev/null || true
             rpmsign --addsign "$rpm"
