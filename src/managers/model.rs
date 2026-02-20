@@ -496,10 +496,18 @@ impl ModelManager {
 
                 model.is_downloaded =
                     match self.repair_and_validate_directory_model(model, &model_path) {
-                        Ok(valid) => valid,
+                        Ok(valid) => {
+                            info!(
+                                "Model '{}' validation: {} (path: {})",
+                                model.id,
+                                if valid { "valid" } else { "invalid" },
+                                model_path.display()
+                            );
+                            valid
+                        }
                         Err(e) => {
                             warn!(
-                                "Failed to validate model {} at {}: {}",
+                                "Failed to validate model '{}' at {}: {}",
                                 model.id,
                                 model_path.display(),
                                 e
@@ -549,7 +557,24 @@ impl ModelManager {
                 .unwrap_or(false);
 
         if is_valid_selected {
+            info!("Model selection valid: '{}' is downloaded", selected);
             return Ok(());
+        }
+
+        // Log why we're falling back
+        if selected.is_empty() {
+            info!("No model selected in settings, auto-selecting fallback");
+        } else {
+            let model = models.get(&selected);
+            let status = match model {
+                Some(m) if !m.is_downloaded => "not downloaded",
+                Some(_) => "downloaded but validation failed",
+                None => "not found in available models",
+            };
+            info!(
+                "Selected model '{}' is {}, auto-selecting fallback",
+                selected, status
+            );
         }
 
         let fallback = models
@@ -560,12 +585,17 @@ impl ModelManager {
         drop(models);
 
         if let Some(model_id) = fallback {
-            info!("Auto-selecting model: {}", model_id);
+            info!(
+                "Auto-selecting fallback model (in-memory only): '{}'",
+                model_id
+            );
             *self.selected_model.lock().unwrap() = model_id.clone();
-            crate::settings::Settings::new().set_selected_model(&model_id);
+            // Don't persist fallback to GSettings - user's selection should be preserved
+            // so that when their chosen model becomes available, it will be used
         } else {
+            info!("No downloaded models available for fallback selection");
             *self.selected_model.lock().unwrap() = String::new();
-            crate::settings::Settings::new().set_selected_model("");
+            // Don't persist empty selection to GSettings either
         }
 
         Ok(())
@@ -1187,9 +1217,12 @@ impl ModelManager {
         self.update_download_status()?;
 
         let selected = crate::settings::Settings::new().selected_model();
+        info!("Syncing model selection from settings: '{}'", selected);
+
         let models = self.available_models.lock().unwrap();
 
         if selected.is_empty() {
+            info!("No model selected in settings");
             drop(models);
             *self.selected_model.lock().unwrap() = String::new();
             return Ok(());
@@ -1197,10 +1230,18 @@ impl ModelManager {
 
         if let Some(model) = models.get(&selected) {
             if model.is_downloaded {
+                info!("Model '{}' is downloaded, using as selected model", selected);
                 drop(models);
                 *self.selected_model.lock().unwrap() = selected;
                 return Ok(());
+            } else {
+                info!(
+                    "Model '{}' exists but is not downloaded, will use fallback",
+                    selected
+                );
             }
+        } else {
+            info!("Model '{}' not found in available models", selected);
         }
 
         drop(models);
