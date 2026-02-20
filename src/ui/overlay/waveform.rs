@@ -7,8 +7,8 @@ use std::sync::{
     Arc,
 };
 
-const OVERLAY_WIDTH: i32 = 360;
-const OVERLAY_HEIGHT: i32 = 72;
+const OVERLAY_WIDTH: i32 = 200;
+const OVERLAY_HEIGHT: i32 = 40;
 const BOTTOM_MARGIN: i32 = 80;
 const BAR_COUNT: usize = 16;
 
@@ -78,36 +78,30 @@ impl WaveformOverlay {
         self.drawing_area.set_draw_func(move |_, cr, width, height| {
             let levels = levels.borrow();
 
-            // Draw semi-transparent dark background with rounded corners
-            cr.set_source_rgba(0.11, 0.11, 0.14, 0.88);
-            let corner_radius = 16.0;
-            draw_rounded_rect_path(cr, 0.0, 0.0, width as f64, height as f64, corner_radius);
-            cr.fill().expect("Failed to fill background");
+            // Transparent background - no drawing needed
 
             // Draw bars
-            let bar_spacing = 4.0;
+            let bar_spacing = 3.0;
             let total_spacing = bar_spacing * (BAR_COUNT - 1) as f64;
-            let bar_width = (width as f64 - total_spacing - 24.0) / BAR_COUNT as f64;
-            let margin_x = 12.0;
-            let max_bar_height = height as f64 - 20.0;
+            let bar_width = (width as f64 - total_spacing) / BAR_COUNT as f64;
+            let max_bar_height = height as f64 - 4.0;
 
             for (i, &level) in levels.iter().enumerate() {
-                let x = margin_x + i as f64 * (bar_width + bar_spacing);
+                let x = i as f64 * (bar_width + bar_spacing);
                 let bar_height = (level as f64).min(1.0) * max_bar_height;
-                let bar_height = bar_height.max(4.0); // Minimum bar height
+                let bar_height = bar_height.max(2.0); // Minimum bar height
                 let y = (height as f64 - bar_height) / 2.0;
 
                 // Create gradient for bar (blue to purple)
                 let gradient =
                     gtk4::cairo::LinearGradient::new(x, y, x, y + bar_height);
-                gradient.add_color_stop_rgba(0.0, 0.42, 0.65, 1.0, 0.95);
-                gradient.add_color_stop_rgba(0.5, 0.55, 0.45, 1.0, 0.9);
-                gradient.add_color_stop_rgba(1.0, 0.68, 0.30, 0.95, 0.85);
+                gradient.add_color_stop_rgba(0.0, 0.42, 0.65, 1.0, 0.9);
+                gradient.add_color_stop_rgba(1.0, 0.68, 0.30, 0.95, 0.8);
 
                 let _ = cr.set_source(&gradient);
 
                 // Draw rounded rectangle for bar
-                let radius = (bar_width / 2.0).min(4.0);
+                let radius = (bar_width / 2.0).min(2.0);
                 draw_rounded_rect_path(cr, x, y, bar_width, bar_height, radius);
                 cr.fill().expect("Failed to fill bar");
             }
