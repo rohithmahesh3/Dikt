@@ -1,128 +1,214 @@
-# Dikt - Speech to Text for Fedora/GNOME
+# Dikt
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+**Speech-to-Text for GNOME/Wayland**
 
-Dikt is a speech-to-text application for **Fedora Workstation on GNOME/Wayland**. It integrates natively with IBus, allowing you to dictate text into any application.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Dikt is a native speech-to-text application for GNOME on Wayland. It integrates directly with IBus, letting you dictate into any application with a global keyboard shortcut.
+
+![Dikt Screenshot](https://dikt.tequerist.com/imgs/GeneralPage.png)
 
 ## Features
 
-- **Native IBus Integration** - IBus engine + GNOME input source integration
-- **Global Dictation Shortcut** - Uses system keyboard events for hands-free dictation
-- **Local Processing** - Uses Whisper/Parakeet for offline speech recognition
-- **Multi-language Support** - Supports 50+ languages
-- **Native GTK4/Libadwaita UI** - GNOME-native preferences window
-- **Post-Processing** - Optional AI cleanup of transcripts via LLM
+- **Native IBus Integration** — Seamless input method switching during dictation
+- **Global Dictation Shortcut** — Toggle recording from anywhere, automatic input switching
+- **Offline Processing** — All speech recognition runs locally on your device
+- **Multi-language Support** — 50+ languages supported
+- **Multiple Recognition Engines** — Whisper, Parakeet, Moonshine, SenseVoice
+- **GNOME-Native UI** — Built with GTK4 and Libadwaita
+- **AI Post-Processing** — Optional LLM-based cleanup of transcripts
 
 ## Installation
 
+### Fedora / RHEL / CentOS
+
 ```bash
+# Add the repository
+sudo dnf config-manager addrepo --from-repofile=https://rohithmahesh3.github.io/dikt-rpm/dikt.repo
+
+# Install
 sudo dnf install ibus-dikt
 ```
 
-After installation, Dikt automatically registers with IBus.
-
-## Setup
-
-1. Open **Settings → Keyboard → Input Sources**
-2. Click the **+** button
-3. Select **Dikt Speech-to-Text**
-4. Click **Add**
-
-## Usage
-
-1. Configure your dictation shortcut in Dikt preferences.
-2. Press the shortcut once to start recording.
-3. Press the shortcut again to stop recording and commit text.
-
-### Preferences
-
-Open Dikt from the application menu to configure:
-
-- Language selection
-- Audio feedback
-- Model management
-- Post-processing settings
-
-## Requirements
-
-- Fedora 40+ Workstation
-- GNOME on Wayland
-- IBus (default on Fedora Workstation)
-- Microphone
-
-## Building from Source
+### From Source
 
 ```bash
-# Install build dependencies
+# Dependencies (Fedora)
 sudo dnf install -y \
+    rustc cargo \
     gtk4-devel libadwaita-devel graphene-devel \
-    alsa-lib-devel pipewire-devel libevdev-devel \
-    openssl-devel ibus-devel cmake clang-devel glslc
+    alsa-lib-devel ibus-devel glib2-devel \
+    openssl-devel cmake clang-devel glslc
 
-# Clone and build
+# Build
 git clone https://github.com/rohithmahesh3/Dikt.git
 cd Dikt
 cargo build --release
 ```
 
-## How It Works
+## Setup
 
-1. **Daemon**: `dikt --daemon` exports `io.dikt.Transcription` on session D-Bus.
-2. **Global shortcut listener**: daemon listens to evdev keyboard events for the configured shortcut.
-3. **IBus bridge**: first press starts recording and next press stops; engine-side pending commit path commits text to the focused app.
-4. **Transcription**: audio is transcribed locally; optional post-processing can rewrite final output.
+1. Install Dikt (see Installation above)
+2. Open Dikt from your application menu
+3. Configure your dictation shortcut
+4. Download a recognition model
 
-## Model Support
+That's it. Dikt automatically handles input method switching during transcription.
 
-Dikt supports multiple speech recognition models:
+## Usage
 
-- **Whisper** (Small/Medium/Turbo) - OpenAI's speech recognition
-- **Parakeet V3** - CPU-optimized with automatic language detection
-- **SenseVoice** - Fast Chinese/English/Japanese/Korean
+1. Press your dictation shortcut to start recording
+2. Speak naturally
+3. Press the shortcut again to transcribe and insert text
 
-Models are downloaded from the preferences window.
+Dikt automatically switches to its input method during transcription and switches back when done. The text appears in whichever application has focus.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Dikt                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │   evdev     │───▶│    D-Bus    │───▶│    IBus     │     │
+│  │  shortcut   │    │   daemon    │    │   engine    │     │
+│  └─────────────┘    └──────┬──────┘    └──────┬──────┘     │
+│                            │                   │            │
+│                     ┌──────▼──────┐            │            │
+│                     │    Audio    │            │            │
+│                     │   capture   │            │            │
+│                     └──────┬──────┘            │            │
+│                            │                   │            │
+│                     ┌──────▼──────┐            │            │
+│                     │ Transcribe  │            │            │
+│                     │   Engine    │────────────┘            │
+│                     └─────────────┘                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │  Any GTK/Qt/    │
+                    │  application    │
+                    └─────────────────┘
+```
+
+**Components:**
+
+| Component | Role |
+|-----------|------|
+| `dikt --daemon` | D-Bus service, handles shortcuts and audio |
+| `ibus-dikt-engine` | IBus input method, commits text to apps |
+| `dikt` (GUI) | Preferences window |
+
+## Recognition Models
+
+Dikt supports multiple speech recognition backends:
+
+| Model | Strengths | Languages |
+|-------|-----------|-----------|
+| **Whisper** (Small/Medium/Turbo) | High accuracy | 50+ |
+| **Parakeet V3** | CPU-optimized, auto-detect language | 50+ |
+| **Moonshine** | Fast, low-resource | English |
+| **SenseVoice** | Optimized for CJK | Chinese, Japanese, Korean, English |
+
+Models are downloaded on-demand from the preferences window.
+
+## Configuration
+
+Open Dikt from your application menu to configure:
+
+- **Language** — Primary recognition language
+- **Dictation Shortcut** — Global keybinding to toggle recording
+- **Audio Feedback** — Sounds for start/stop events
+- **Model Selection** — Choose and download recognition models
+- **Post-Processing** — Optional AI cleanup via LLM
+
+## Requirements
+
+- GNOME on Wayland
+- IBus (default on most GNOME installations)
+- PulseAudio or PipeWire audio system
+- Microphone
 
 ## Troubleshooting
 
-### Dikt not appearing in IBus
+<details>
+<summary>Dictation shortcut not working</summary>
 
 ```bash
-ibus write-cache
-ibus restart
-```
-
-### Toggle dictation does not trigger
-
-```bash
+# Check daemon status
 systemctl --user status dikt.service
+
+# Restart if needed
 systemctl --user restart dikt.service
 ```
 
-### No microphone access
+Also ensure no other application is capturing your shortcut key.
+</details>
 
-Ensure your user is in the `audio` group:
+<details>
+<summary>No microphone access</summary>
 
 ```bash
+# Add user to audio group
 sudo usermod -aG audio $USER
+
 # Log out and back in
 ```
+</details>
 
-### Manual Model Installation
+<details>
+<summary>Manual model installation</summary>
 
 Place models in `~/.local/share/dikt/models/`:
 
-- Whisper: `.bin` files directly
-- Parakeet/SenseVoice: extract `.tar.gz` to subdirectory
+- **Whisper**: `.bin` files directly
+- **Parakeet/SenseVoice**: extract `.tar.gz` to subdirectory
+</details>
+
+## Development
+
+```bash
+# Build
+cargo build
+
+# Run daemon
+cargo run -- --daemon
+
+# Run GUI
+cargo run
+
+# Run IBus engine
+cargo run --bin ibus-dikt-engine -- --ibus
+```
+
+## Roadmap
+
+- [ ] Additional distribution packages (Arch, Debian, openSUSE)
+- [ ] Wayland-only global shortcuts via portal
+- [ ] Custom vocabulary support
+- [ ] Real-time transcription preview
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- **Whisper** by OpenAI - Speech recognition model
-- **IBus** - Intelligent Input Bus
+- [Whisper](https://github.com/openai/whisper) by OpenAI
+- [IBus](https://github.com/ibus/ibus) — Intelligent Input Bus
+- [Handy](https://github.com/cjpais/handy) — Original inspiration for this project
 
-## Related Projects
+---
 
-- **[Handy](https://github.com/cjpais/handy)** - Original speech-to-text application for Linux that inspired this project
+<p align="center">
+  <a href="https://dikt.tequerist.com">Website</a> •
+  <a href="https://github.com/rohithmahesh3/Dikt/issues">Issues</a> •
+  <a href="https://github.com/rohithmahesh3/Dikt/discussions">Discussions</a>
+</p>
