@@ -77,8 +77,15 @@ jobs:
           %__gpg_sign_cmd /usr/bin/env GPG_TTY=/dev/null %{__gpg} --batch --pinentry-mode loopback -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
           EOF
 
-          # Find and sign all RPMs (including subdirs)
-          find . -type f -name "ibus-dikt-${VERSION}-${RELEASE}*.rpm" | while read rpm; do
+          # Find and sign all RPMs (including subdirs, excluding src.rpm)
+          mapfile -t RPM_FILES < <(find . -type f -name "ibus-dikt-${VERSION}-${RELEASE}*.rpm" ! -name "*.src.rpm" | sort)
+          if [ "${#RPM_FILES[@]}" -eq 0 ]; then
+            echo "No RPM artifacts found to sign"
+            find . -maxdepth 4 -type f -name "ibus-dikt-*.rpm" | sort || true
+            exit 1
+          fi
+
+          for rpm in "${RPM_FILES[@]}"; do
             echo "Signing: $rpm"
             rpm --delsign "$rpm" 2>/dev/null || true
             rpmsign --addsign "$rpm"
