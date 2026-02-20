@@ -31,6 +31,7 @@ gboolean ibus_dikt_set_global_engine(const gchar* engine_name);
 gchar* ibus_dikt_get_global_engine_name(void);
 gboolean ibus_dikt_daemon_set_global_engine(const gchar* engine_name);
 gchar* ibus_dikt_daemon_get_global_engine_name(void);
+void ibus_dikt_daemon_reset_bus_cache(void);
 
 typedef struct {
     IBusEngine parent;

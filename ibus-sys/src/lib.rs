@@ -173,6 +173,7 @@ extern "C" {
     pub fn ibus_dikt_get_global_engine_name() -> *mut gchar;
     pub fn ibus_dikt_daemon_set_global_engine(engine_name: *const gchar) -> gboolean;
     pub fn ibus_dikt_daemon_get_global_engine_name() -> *mut gchar;
+    pub fn ibus_dikt_daemon_reset_bus_cache();
 }
 
 pub mod keys {

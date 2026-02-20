@@ -199,7 +199,10 @@ impl ModelManager {
                 name: "Whisper Small".to_string(),
                 description: "Fast and fairly accurate.".to_string(),
                 filename: "ggml-small.bin".to_string(),
-                url: Some("https://github.com/rohithmahesh3/Dikt/releases/download/models/ggml-small.bin".to_string()),
+                url: Some(
+                    "https://github.com/rohithmahesh3/Dikt/releases/download/models/ggml-small.bin"
+                        .to_string(),
+                ),
                 size_mb: 487,
                 is_downloaded: false,
                 is_downloading: false,

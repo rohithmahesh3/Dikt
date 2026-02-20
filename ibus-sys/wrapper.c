@@ -228,6 +228,13 @@ gchar *ibus_dikt_get_global_engine_name(void) {
 static gsize daemon_ibus_initialized = 0;
 static IBusBus *daemon_cached_bus = NULL;
 
+void ibus_dikt_daemon_reset_bus_cache(void) {
+  if (daemon_cached_bus) {
+    g_object_unref(daemon_cached_bus);
+    daemon_cached_bus = NULL;
+  }
+}
+
 /* Return a persistent, cached IBusBus for the daemon process.
  * Re-creates the connection only if it was never opened or has disconnected.
  * This avoids the ~50-200 ms overhead of ibus_bus_new() on every call,
@@ -242,16 +249,12 @@ static IBusBus *ibus_dikt_daemon_get_bus(void) {
     return daemon_cached_bus;
   }
 
-  if (daemon_cached_bus) {
-    g_object_unref(daemon_cached_bus);
-    daemon_cached_bus = NULL;
-  }
+  ibus_dikt_daemon_reset_bus_cache();
 
   daemon_cached_bus = ibus_bus_new();
   if (!daemon_cached_bus || !ibus_bus_is_connected(daemon_cached_bus)) {
     if (daemon_cached_bus) {
-      g_object_unref(daemon_cached_bus);
-      daemon_cached_bus = NULL;
+      ibus_dikt_daemon_reset_bus_cache();
     }
     return NULL;
   }
