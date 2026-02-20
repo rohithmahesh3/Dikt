@@ -3,7 +3,7 @@ use libadwaita::Application as AdwApplication;
 use std::sync::{Arc, Mutex};
 
 use crate::dbus::{self, DiktState};
-use crate::global_shortcuts::start_global_shortcuts_listener;
+use crate::global_shortcuts::{is_restricted_session_context, start_global_shortcuts_listener};
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::model::ModelManager;
 use crate::managers::transcription::TranscriptionManager;
@@ -317,7 +317,11 @@ pub fn run_daemon() {
     let context = glib::MainContext::default();
     match context.block_on(dbus::start_dbus_server(dikt_state)) {
         Ok(dbus_state) => {
-            start_global_shortcuts_listener();
+            if is_restricted_session_context() {
+                log::info!("Skipping global shortcut listener in restricted greeter session");
+            } else {
+                start_global_shortcuts_listener();
+            }
             let main_loop = glib::MainLoop::new(None, false);
 
             // Setup shutdown signal handler

@@ -39,6 +39,24 @@ static HEALTH_STATE: OnceLock<Mutex<ToggleRuntimeHealth>> = OnceLock::new();
 static TOGGLE_RECENT_EVENTS: OnceLock<Mutex<VecDeque<String>>> = OnceLock::new();
 static FORCE_REBIND_REQUESTED: AtomicBool = AtomicBool::new(false);
 
+fn is_greeter_session_from(user: Option<&str>, session_class: Option<&str>) -> bool {
+    let is_greeter_user = user
+        .map(str::trim)
+        .map(|u| u.eq_ignore_ascii_case("gdm") || u.eq_ignore_ascii_case("gdm-greeter"))
+        .unwrap_or(false);
+    let is_greeter_class = session_class
+        .map(str::trim)
+        .map(|class| class.eq_ignore_ascii_case("greeter"))
+        .unwrap_or(false);
+    is_greeter_user || is_greeter_class
+}
+
+pub fn is_restricted_session_context() -> bool {
+    let user = std::env::var("USER").ok();
+    let session_class = std::env::var("XDG_SESSION_CLASS").ok();
+    is_greeter_session_from(user.as_deref(), session_class.as_deref())
+}
+
 // ── TOGGLE state machine ──────────────────────────────────────────────────
 
 #[derive(Debug)]
@@ -1453,6 +1471,10 @@ fn extract_start_failure_code(err: &str) -> String {
 }
 
 fn notify_toggle_failure(summary: &str, body: &str) {
+    if is_restricted_session_context() {
+        return;
+    }
+
     let now = now_millis();
     if let Ok(mut health) = health_state().lock() {
         if now.saturating_sub(health.last_notification_ms) < FAILURE_NOTIFICATION_COOLDOWN_MS {
@@ -1483,6 +1505,28 @@ fn notify_toggle_failure(summary: &str, body: &str) {
 
 fn next_toggle_session_id() -> u64 {
     TOGGLE_SESSION_COUNTER.fetch_add(1, Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_greeter_session_from;
+
+    #[test]
+    fn greeter_user_is_restricted() {
+        assert!(is_greeter_session_from(Some("gdm"), Some("user")));
+        assert!(is_greeter_session_from(Some("gdm-greeter"), Some("user")));
+    }
+
+    #[test]
+    fn greeter_session_class_is_restricted() {
+        assert!(is_greeter_session_from(Some("testuser"), Some("greeter")));
+        assert!(is_greeter_session_from(Some("testuser"), Some("Greeter")));
+    }
+
+    #[test]
+    fn normal_user_session_is_not_restricted() {
+        assert!(!is_greeter_session_from(Some("testuser"), Some("user")));
+    }
 }
 
 // ── Shortcut config ────────────────────────────────────────────────────
