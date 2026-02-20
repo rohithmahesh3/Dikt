@@ -63,45 +63,6 @@ That's it. Dikt automatically handles input method switching during transcriptio
 
 Dikt automatically switches to its input method during transcription and switches back when done. The text appears in whichever application has focus.
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Dikt                                │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   evdev     │───▶│    D-Bus    │───▶│    IBus     │     │
-│  │  shortcut   │    │   daemon    │    │   engine    │     │
-│  └─────────────┘    └──────┬──────┘    └──────┬──────┘     │
-│                            │                   │            │
-│                     ┌──────▼──────┐            │            │
-│                     │    Audio    │            │            │
-│                     │   capture   │            │            │
-│                     └──────┬──────┘            │            │
-│                            │                   │            │
-│                     ┌──────▼──────┐            │            │
-│                     │ Transcribe  │            │            │
-│                     │   Engine    │────────────┘            │
-│                     └─────────────┘                         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │  Any GTK/Qt/    │
-                    │  application    │
-                    └─────────────────┘
-```
-
-**Components:**
-
-| Component | Role |
-|-----------|------|
-| `dikt --daemon` | D-Bus service, handles shortcuts and audio |
-| `ibus-dikt-engine` | IBus input method, commits text to apps |
-| `dikt` (GUI) | Preferences window |
-
 ## Recognition Models
 
 Dikt supports multiple speech recognition backends:
