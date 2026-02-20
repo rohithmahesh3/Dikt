@@ -10,6 +10,7 @@ use crate::managers::audio::AudioRecordingManager;
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{PostProcessProvider, Settings};
 use crate::text_utils::convert_chinese_variant;
+use crate::ui::OverlayVisibilityHandle;
 use crate::utils::logging::read_recent_logs;
 use crate::{audio_feedback::play_feedback_sound, audio_feedback::SoundType};
 use log::{debug, error, info, warn};
@@ -240,6 +241,7 @@ pub struct DiktState {
     session_claim_tokens: Mutex<HashMap<u64, String>>,
     session_statuses: Mutex<HashMap<u64, SessionStatusEntry>>,
     log_buffer: Arc<Mutex<VecDeque<String>>>,
+    waveform_overlay: Mutex<Option<OverlayVisibilityHandle>>,
 }
 
 impl DiktState {
@@ -266,6 +268,7 @@ impl DiktState {
             session_claim_tokens: Mutex::new(HashMap::new()),
             session_statuses: Mutex::new(HashMap::new()),
             log_buffer,
+            waveform_overlay: Mutex::new(None),
         }
     }
 
@@ -541,6 +544,29 @@ impl DiktState {
             .map(|sessions| sessions.contains(&session_id))
             .unwrap_or(false)
     }
+
+    /// Set the waveform overlay visibility handle for show/hide during recording.
+    pub fn set_waveform_overlay(&self, handle: OverlayVisibilityHandle) {
+        if let Ok(mut guard) = self.waveform_overlay.lock() {
+            *guard = Some(handle);
+        }
+    }
+
+    fn show_waveform_overlay(&self) {
+        if let Ok(guard) = self.waveform_overlay.lock() {
+            if let Some(handle) = guard.as_ref() {
+                handle.show();
+            }
+        }
+    }
+
+    fn hide_waveform_overlay(&self) {
+        if let Ok(guard) = self.waveform_overlay.lock() {
+            if let Some(handle) = guard.as_ref() {
+                handle.hide();
+            }
+        }
+    }
 }
 
 /// D-Bus state for connection management
@@ -620,6 +646,7 @@ impl DiktTranscription {
 
         if self.state.is_recording.swap(false, Ordering::SeqCst) {
             self.state.recording_manager.cancel_recording();
+            self.state.hide_waveform_overlay();
             self.emit_recording_state_changed(false).await?;
         }
 
@@ -899,6 +926,7 @@ impl DiktTranscription {
 
                 self.emit_recording_state_changed(true).await?;
                 play_feedback_sound(&Settings::new(), SoundType::Start);
+                self.state.show_waveform_overlay();
                 info!("D-Bus: Recording started in {:?}", start_time.elapsed());
                 Ok(())
             }
@@ -953,6 +981,7 @@ impl DiktTranscription {
             self.emit_recording_state_changed(false).await?;
         }
 
+        self.state.hide_waveform_overlay();
         play_feedback_sound(&Settings::new(), SoundType::Stop);
         self.state.recording_manager.remove_mute();
 

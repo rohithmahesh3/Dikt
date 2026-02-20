@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+pub type LevelCallback = Arc<dyn Fn(Vec<f32>) + Send + Sync + 'static>;
+
 const WHISPER_SAMPLE_RATE: usize = 16000;
 
 #[derive(Clone, Debug)]
@@ -63,6 +65,7 @@ pub struct AudioRecordingManager {
     recorder: Arc<Mutex<Option<AudioRecorder>>>,
     is_open: Arc<Mutex<bool>>,
     did_mute: Arc<Mutex<bool>>,
+    level_callback: Arc<Mutex<Option<LevelCallback>>>,
 }
 
 fn set_mute(mute: bool) {
@@ -111,6 +114,7 @@ impl AudioRecordingManager {
             recorder: Arc::new(Mutex::new(None)),
             is_open: Arc::new(Mutex::new(false)),
             did_mute: Arc::new(Mutex::new(false)),
+            level_callback: Arc::new(Mutex::new(None)),
         };
 
         if matches!(mode, MicrophoneMode::AlwaysOn) {
@@ -178,11 +182,22 @@ or resources/models/silero_vad_v4.onnx"
         .map_err(|e| anyhow::anyhow!("Failed to create SileroVad: {}", e))?;
         let smoothed_vad = SmoothedVad::new(Box::new(silero), 15, 15, 2);
 
-        let recorder = AudioRecorder::new()
+        let mut recorder = AudioRecorder::new()
             .map_err(|e| anyhow::anyhow!("Failed to create AudioRecorder: {}", e))?
             .with_vad(Box::new(smoothed_vad));
 
+        // Attach level callback if one has been set
+        if let Some(cb) = self.level_callback.lock().unwrap().clone() {
+            recorder = recorder.with_level_callback(move |levels| cb(levels));
+        }
+
         Ok(recorder)
+    }
+
+    /// Set a callback to receive audio level updates during recording.
+    /// The callback receives a vector of 16 normalized frequency bucket values (0.0-1.0).
+    pub fn set_level_callback(&self, callback: LevelCallback) {
+        *self.level_callback.lock().unwrap() = Some(callback);
     }
 
     pub fn start_microphone_stream(&self) -> Result<(), anyhow::Error> {

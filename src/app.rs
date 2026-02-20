@@ -9,6 +9,7 @@ use crate::managers::model::ModelManager;
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{LogLevel, Settings};
 use crate::ui::window::MainWindow;
+use crate::ui::WaveformOverlay;
 
 const UI_APP_ID: &str = "io.dikt.Dikt";
 
@@ -302,6 +303,12 @@ pub fn run_ui() {
 pub fn run_daemon() {
     use std::sync::atomic::{AtomicBool, Ordering};
 
+    // Initialize GTK for the waveform overlay
+    if let Err(e) = gtk4::init() {
+        eprintln!("Failed to initialize GTK: {}", e);
+        std::process::exit(1);
+    }
+
     // Keep runtime_state alive for the daemon's lifetime.
     // It contains the Settings object with GSettings signal handlers.
     // If dropped, all settings change notifications would be disconnected.
@@ -313,6 +320,25 @@ pub fn run_daemon() {
             std::process::exit(1);
         }
     };
+
+    // Initialize waveform overlay for visual feedback during recording
+    let waveform_overlay = WaveformOverlay::new();
+    let visibility_handle = waveform_overlay.get_visibility_handle();
+
+    // Create channel for level updates from audio thread to GTK main thread
+    let (level_sender, level_receiver) = std::sync::mpsc::sync_channel::<Vec<f32>>(32);
+    waveform_overlay.attach_level_receiver(level_receiver);
+
+    // Pass level callback to recording manager
+    let level_callback = Arc::new(move |levels: Vec<f32>| {
+        let _ = level_sender.try_send(levels);
+    });
+    dikt_state
+        .recording_manager
+        .set_level_callback(level_callback);
+
+    // Store visibility handle in DiktState for show/hide during recording
+    dikt_state.set_waveform_overlay(visibility_handle);
 
     let context = glib::MainContext::default();
     match context.block_on(dbus::start_dbus_server(dikt_state)) {
