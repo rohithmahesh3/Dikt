@@ -1,7 +1,7 @@
 [Unit]
 Description=Dikt Speech-to-Text Service
+PartOf=graphical-session.target
 After=graphical-session.target
-Requires=graphical-session.target
 ConditionUser=!gdm
 ConditionUser=!gdm-greeter
 
@@ -13,5 +13,4 @@ Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=default.target
 WantedBy=graphical-session.target
